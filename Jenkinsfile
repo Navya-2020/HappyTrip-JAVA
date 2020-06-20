@@ -33,5 +33,19 @@ buildInfo.env.capture = true
 }
 }
 }
+  stage('Execute Maven'){
+    steps{
+      script{
+        rtMaven.run 'pom.xml', goals:'clean install', buildInfo: buildInfo
+      }
+    }
+  }
+  stage('Publish build info'){
+    steps{
+      script{
+        server.publishBuildInfo buildInfo
+      }
+    }
+  }
 }
 }
