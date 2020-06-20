@@ -1,51 +1,69 @@
-def server = Artifactory.server 'Artifactory Version 4.15.0'
-def rtMaven = Artifactory.newMavenBuild()
-def buildInfo
-
-pipeline{
-agent any
+pipeline {
+agent any&lt;/code&gt;
+ 
 tools{
-jdk "jdk8 "
-maven "maven"
+maven 'maven'
+jdk 'jdk8'
 }
+ 
 stages {
-stage('Clone sources'){
+stage ("initialize") {
+steps {
+sh '''
+echo "PATH = ${PATH}"
+echo "M2_HOME = ${M2_HOME}"
+'''
+}
+}
+  stage ('Build project') {
+steps {
+dir("project_templates/java_project_template"){
+sh 'mvn clean verify
+ 
+}
+}
+}
+  
+  stage ('SonarQube Analysis'){
 steps{
-git url: 'https://github.com/Navya-2020/HappyTrip-JAVA.git'
+dir("project_templates/java_project_template"){
+withSonarQubeEnv('sonarqubescanner') {
+sh 'mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.2:sonar'
 }
 }
-stage('SonarQube Analysis'){
+}
+}
+  
+  stage ('Artifactory Deploy'){
+when {
+branch "master"
+}
 steps{
-withSonarQubeEnv('sonarqubescanner'){
-bat 'mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.3.0.603:sonar'
+dir("project_templates/java_project_template"){
+script {
+def server = Artifactory.server('Artifactory Version 4.15.0')
+def rtMaven = Artifactory.newMavenBuild()
+rtMaven.resolver server: server, releaseRepo: 'libs-release', snapshotRepo: 'libs-snapshot'
+rtMaven.deployer server: server, releaseRepo: 'libs-release-local', snapshotRepo: 'libs-snapshot-local'
+rtMaven.tool = 'maven 3'
+def buildInfo = rtMaven.run pom: 'pom.xml', goals: 'install'
+server.publishBuildInfo buildInfo
 }
 }
 }
-stage('Artifactory configuration'){
-steps{
-script{
-rtMaven.tool='maven'
-rtMaven.deployer releaseRepo: 'libs-release-local', snapshotRepo: 'libs-snapshot-local, server:server'
-rtMaven.resolver releaseRepo: 'libs-release',snapshotRepo: 'libs-snapshot', server:server
-rtMaven.deployer.artifactDeployementPatterns.addExclude("pom.xml")
-buildInfo.retention maxBuilds: 10, maxDays: 7, deleteBuildArtifacts: true
-buildInfo.env.capture = true
+}
+  
+  post {
+success {
+slackSend (color: '#00FF00', message: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+ 
+}
+failure {
+slackSend (color: '#FF0000', message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+ 
 }
 }
-}
-  stage('Execute Maven'){
-    steps{
-      script{
-        rtMaven.run 'pom.xml', goals:'clean install', buildInfo: buildInfo
-      }
-    }
-  }
-  stage('Publish build info'){
-    steps{
-      script{
-        server.publishBuildInfo buildInfo
-      }
-    }
-  }
+  
+  
 }
 }
