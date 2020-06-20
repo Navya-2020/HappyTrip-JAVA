@@ -1,5 +1,7 @@
 pipeline {
 agent any&lt;/code&gt;
+ booleanParam(name: 'executeSonarQube',defaultValue:false, description:'')
+ booleanParam(name: 'Deploy',defaultValue:false, description:'')
  
 tools{
 maven 'maven'
@@ -23,6 +25,12 @@ sh 'mvn clean verify
 }
 }
 }
+ 
+ stage('Approval'){
+  steps{
+   input('Do you want to proceede?')
+  }
+ }
   
   stage ('SonarQube Analysis'){
 steps{
